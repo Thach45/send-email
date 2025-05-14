@@ -1,55 +1,35 @@
 const nodemailer = require('nodemailer');
 
-// Tạo transporter với cấu hình nâng cao
-const createTransporter = () => {
-  console.log('Creating mail transporter...');
-  console.log('Email User:', process.env.EMAIL_USER); // Log để debug
-  
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    },
-    tls: {
-      ciphers: 'SSLv3',
-      rejectUnauthorized: false
-    },
-    debug: true // Bật chế độ debug
-  });
-};
+// Tạo transporter một lần và tái sử dụng
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
 
 exports.sendEmail = async (req, res) => {
-  console.log('Received email request:', {
-    recipient: req.body.recipientEmail,
-    hasContent: !!req.body.content
-  });
-
   try {
     const { content, recipientEmail } = req.body;
 
+    // Kiểm tra dữ liệu đầu vào
     if (!content || !recipientEmail) {
-      console.log('Missing required fields');
-      return res.status(400).json({ 
-        error: 'Nội dung email và địa chỉ người nhận là bắt buộc' 
+      return res.status(400).json({
+        success: false,
+        error: 'Nội dung email và địa chỉ người nhận là bắt buộc'
       });
     }
 
-    // Tạo transporter mới cho mỗi request
-    const transporter = createTransporter();
+    // Kiểm tra kết nối SMTP
+    await transporter.verify();
 
-    // Verify transporter connection
-    try {
-      await transporter.verify();
-      console.log('Transporter verified successfully');
-    } catch (verifyError) {
-      console.error('Transporter verification failed:', verifyError);
-      throw new Error('Mail server connection failed');
-    }
-
+    // Cấu hình email
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
@@ -57,25 +37,22 @@ exports.sendEmail = async (req, res) => {
       text: content
     };
 
-    console.log('Attempting to send email...');
+    // Gửi email
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', info.messageId);
 
-    res.status(200).json({ 
+    return res.status(200).json({
+      success: true,
       message: 'Gửi email thành công',
-      messageId: info.messageId 
-    });
-  } catch (error) {
-    console.error('Chi tiết lỗi khi gửi email:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      command: error.command
+      messageId: info.messageId
     });
 
-    res.status(500).json({ 
+  } catch (error) {
+    console.error('Lỗi:', error);
+    
+    return res.status(500).json({
+      success: false,
       error: 'Không thể gửi email',
-      details: error.message 
+      message: error.message
     });
   }
 };
