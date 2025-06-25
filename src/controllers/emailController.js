@@ -34,7 +34,7 @@ exports.sendEmail = async (req, res) => {
       from: process.env.EMAIL_USER,
       to: recipientEmail,
       subject: 'Tin nhắn mới',
-      text: content
+      html: content
     };
 
     // Gửi email
